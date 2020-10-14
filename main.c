@@ -429,7 +429,8 @@ int main(int argc, char* argv[]){
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     sprintf(aux,"%.4f", time_spent);
     printf("TecnicoFS completed in %s seconds.\n", aux);
-
+	
+    /* tudo correu bem */
     exit(EXIT_SUCCESS);
 
 }
