@@ -337,6 +337,7 @@ void assignArgs(int argc, char* argv[]){
 
         /* check the syncstrategy */
         if (strcmp(argv[4], "mutex") == 0){
+<<<<<<< HEAD
             if (numthreads == 1){
                 fprintf(stderr, "Error: number of threads for mutex must be greater than 1.\n");
                 exit(EXIT_FAILURE);
@@ -348,6 +349,13 @@ void assignArgs(int argc, char* argv[]){
                 fprintf(stderr, "Error: number of threads for rwlock must be greater than 1.\n");
                 exit(EXIT_FAILURE);
             }
+=======
+
+            syncstrategy = MUTEX;
+        }
+        else if (strcmp(argv[4], "rwlock") == 0){
+
+>>>>>>> aa4ec2cc93ad1e0276345389c9951e8b988977ea
             syncstrategy = RWLOCK;
         }
         else if (strcmp(argv[4], "nosync") == 0){
@@ -373,17 +381,23 @@ int main(int argc, char* argv[]){
 
     FILE *file;
     char aux[50];
+<<<<<<< HEAD
 
     /* parse the arguments */
     assignArgs(argc, argv);
 
     /* open the output_file to write the final tecnicofs */
     file = fopen(output_file, "w");
+=======
+>>>>>>> aa4ec2cc93ad1e0276345389c9951e8b988977ea
 
     if (file == NULL){
         fprintf(stderr, "Error: unable to open the output file.\n");
         exit(EXIT_FAILURE);
     }
+
+    /* open the output_file to write the final tecnicofs */
+    file = fopen(output_file, "w");
 
     /* init filesystem */
     init_fs();
