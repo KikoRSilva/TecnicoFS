@@ -1,3 +1,9 @@
+"""
+Autores: Pedro Peres 96903
+         Francisco Silva 97433
+Grupo: 13
+"""
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -18,6 +24,9 @@
 #define RWLOCK 2
 #define NOSYNC 3
 
+#define READ_WRITE 0
+#define READ 1
+
 /*---------------------- Global variables section ----------------------*/
 int numthreads = 0;
 
@@ -33,7 +42,6 @@ int syncstrategy;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-/* Value: 1 for wrlock, 2 for rdlock */
 int rwlock_state;             
 
 
@@ -124,68 +132,76 @@ void thread_sync_destroy();
 
 void* applyCommands(void* arg){
 
-    while (numberCommands > 0){
-
-        rwlock_state = 0; /* rwlock? then this is a write lock */
+    while (true){
+        rwlock_state = READ;
         thread_sync_lock();
-
-        const char* command = removeCommand();
-        if (command == NULL){
+        if (numberCommands > 0){
             thread_sync_unlock();
-            continue;
-        }
+            rwlock_state = READ_WRITE;   
+            thread_sync_lock();
 
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
-        if (numTokens < 2) {
-            fprintf(stderr, "Error: invalid command in Queue.\n");
-            thread_sync_unlock();
-            exit(EXIT_FAILURE);
-        }
-        thread_sync_unlock();
+            const char* command = removeCommand();
+            if (command == NULL){
+                thread_sync_unlock();
+                continue;
+            }
 
-        rwlock_state = 1; /* rwlock? then this is a read lock */
-        thread_sync_lock();
-        int searchResult;
-        switch (token) {
-            case 'c':
-                switch (type) {
-                    case 'f':
-                        printf("Create file: %s.\n", name);
-                        thread_sync_unlock();
-                        create(name, T_FILE);
-                        break;
-                    case 'd':
-                        printf("Create directory: %s.\n", name);
-                        thread_sync_unlock();
-                        create(name, T_DIRECTORY);
-                        break;
-                    default:
-                        fprintf(stderr, "Error: invalid node type.\n");
-                        thread_sync_unlock();
-                        exit(EXIT_FAILURE);
-                }
-                break;
-            case 'l':
-                thread_sync_unlock();
-                searchResult = lookup(name);
-                if (searchResult >= 0){
-                    printf("Search: %s found.\n", name);
-                  }
-                else
-                    printf("Search: %s not found.\n", name);
-                break;
-            case 'd':
-                printf("Delete: %s.\n", name);
-                thread_sync_unlock();
-                delete(name);
-                break;
-            default: { /* error */
-                fprintf(stderr, "Error: command to apply.\n");
+            char token, type;
+            char name[MAX_INPUT_SIZE];
+            int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+            if (numTokens < 2) {
+                fprintf(stderr, "Error: invalid command in Queue.\n");
                 thread_sync_unlock();
                 exit(EXIT_FAILURE);
             }
+            thread_sync_unlock();
+            rwlock_state = READ_WRITE;   
+            thread_sync_lock();
+            int searchResult;
+            switch (token) {
+                case 'c':
+                    switch (type) {
+                        case 'f':
+                            printf("Create file: %s.\n", name);
+                            create(name, T_FILE);
+                            thread_sync_unlock();
+                            break;
+                        case 'd':
+                            printf("Create directory: %s.\n", name);
+                            create(name, T_DIRECTORY);
+                            thread_sync_unlock();
+                            break;
+                        default:
+                            fprintf(stderr, "Error: invalid node type.\n");
+                            thread_sync_unlock();
+                            exit(EXIT_FAILURE);
+                    }
+                    break;
+                case 'l':
+                    searchResult = lookup(name);
+                    if (searchResult >= 0){
+                        printf("Search: %s found.\n", name);
+                        thread_sync_unlock();
+                    }
+                    else{
+                        printf("Search: %s not found.\n", name);
+                        thread_sync_unlock();
+                    }
+                    break;
+                case 'd':
+                    printf("Delete: %s.\n", name);
+                    delete(name);
+                    thread_sync_unlock();
+                    break;
+                default:  /* error */
+                    fprintf(stderr, "Error: command to apply.\n");
+                    thread_sync_unlock();
+                    exit(EXIT_FAILURE);  
+            }
+        }
+        else {
+            thread_sync_unlock();
+            return NULL;
         }
     }
     return NULL;
@@ -337,7 +353,6 @@ void assignArgs(int argc, char* argv[]){
 
         /* check the syncstrategy */
         if (strcmp(argv[4], "mutex") == 0){
-<<<<<<< HEAD
             if (numthreads == 1){
                 fprintf(stderr, "Error: number of threads for mutex must be greater than 1.\n");
                 exit(EXIT_FAILURE);
@@ -349,14 +364,7 @@ void assignArgs(int argc, char* argv[]){
                 fprintf(stderr, "Error: number of threads for rwlock must be greater than 1.\n");
                 exit(EXIT_FAILURE);
             }
-=======
-
             syncstrategy = MUTEX;
-        }
-        else if (strcmp(argv[4], "rwlock") == 0){
-
->>>>>>> aa4ec2cc93ad1e0276345389c9951e8b988977ea
-            syncstrategy = RWLOCK;
         }
         else if (strcmp(argv[4], "nosync") == 0){
             /* NOSYNC requires 1 thread */
@@ -381,15 +389,12 @@ int main(int argc, char* argv[]){
 
     FILE *file;
     char aux[50];
-<<<<<<< HEAD
 
     /* parse the arguments */
     assignArgs(argc, argv);
 
     /* open the output_file to write the final tecnicofs */
     file = fopen(output_file, "w");
-=======
->>>>>>> aa4ec2cc93ad1e0276345389c9951e8b988977ea
 
     if (file == NULL){
         fprintf(stderr, "Error: unable to open the output file.\n");
@@ -432,5 +437,4 @@ int main(int argc, char* argv[]){
 	
     /* tudo correu bem */
     exit(EXIT_SUCCESS);
-
 }
