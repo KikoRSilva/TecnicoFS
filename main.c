@@ -5,7 +5,6 @@
 #include <string.h>
 #include <ctype.h>
 #include "fs/operations.h"
-#include <pthread.h>
 #include <time.h>
 
 
@@ -28,7 +27,6 @@ int headQueue = 0;
 char* input_file;
 char* output_file;
 
-static pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 /* --------------- Functions ---------------*/
 int insertCommand(char* data) {
     if(numberCommands != MAX_COMMANDS) {
@@ -239,9 +237,6 @@ int main(int argc, char* argv[]){
     /* process input and save it in a buffer*/
     processInput();
 
-    /* start the syncstrategy */
-    thread_sync_init();
-
     /* starts the clock */
     clock_t begin = clock();
 
@@ -251,9 +246,6 @@ int main(int argc, char* argv[]){
     /* write the output in the output_file and close it */
     print_tecnicofs_tree(file);
     fclose(file);
-
-    /* finishes the syncstrategy */
-    thread_sync_destroy();
 
     /* release allocated memory */
     destroy_fs();

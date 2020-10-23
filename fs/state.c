@@ -64,10 +64,12 @@ int inode_create(type nType) {
                 
                 for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
                     inode_table[inumber].data.dirEntries[i].inumber = FREE_INODE;
+                    pthread_rwlock_init(&lock, NULL);
                 }
             }
             else {
                 inode_table[inumber].data.fileContents = NULL;
+                pthread_rwlock_init(&lock, NULL);
             }
             return inumber;
         }
@@ -92,8 +94,10 @@ int inode_delete(int inumber) {
 
     inode_table[inumber].nodeType = T_NONE;
     /* see inode_table_destroy function */
-    if (inode_table[inumber].data.dirEntries)
+    if (inode_table[inumber].data.dirEntries){
         free(inode_table[inumber].data.dirEntries);
+        pthread_rwlock_destroy(&lock);
+    }
     return SUCCESS;
 }
 

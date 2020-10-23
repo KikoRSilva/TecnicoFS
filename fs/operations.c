@@ -94,6 +94,7 @@ int is_dir_empty(DirEntry *dirEntries) {
  *  - FAIL: if not found
  */
 int lookup_sub_node(char *name, DirEntry *entries) {
+
 	if (entries == NULL) {
 		return FAIL;
 	}
@@ -258,6 +259,8 @@ int lookup(char *name) {
 
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
+		pthread_rwlock_rdlock(&lock);
+		data.is_locked = true;
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
