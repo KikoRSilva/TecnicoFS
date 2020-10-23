@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <stdbool.h>
 #include "../tecnicofs-api-constants.h"
 
 /* FS root inode number */
@@ -17,7 +19,7 @@
 
 #define DELAY 5000
 
-
+static pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 /*
  * Contains the name of the entry and respective i-number
  */
@@ -32,6 +34,7 @@ typedef struct dirEntry {
 union Data {
 	char *fileContents; /* for files */
 	DirEntry *dirEntries; /* for directories */
+	bool is_locked;
 };
 
 /*
@@ -54,6 +57,5 @@ int inode_set_file(int inumber, char *fileContents, int len);
 int dir_reset_entry(int inumber, int sub_inumber);
 int dir_add_entry(int inumber, int sub_inumber, char *sub_name);
 void inode_print_tree(FILE *fp, int inumber, char *name);
-
 
 #endif /* INODES_H */

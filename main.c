@@ -5,7 +5,6 @@
 #include <string.h>
 #include <ctype.h>
 #include "fs/operations.h"
-#include <pthread.h>
 #include <time.h>
 
 
@@ -27,15 +26,6 @@ int headQueue = 0;
 
 char* input_file;
 char* output_file;
-
-int syncstrategy;
-
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
-
-/* Value: 1 for wrlock, 2 for rdlock */
-int rwlock_state;             
-
 
 /* --------------- Functions ---------------*/
 int insertCommand(char* data) {
@@ -116,22 +106,20 @@ void processInput(){
     fclose(file);
 }
 
-void thread_sync_init();
-void thread_sync_lock();
-void thread_sync_unlock();
-void thread_sync_destroy();
-
 
 void* applyCommands(void* arg){
 
     while (numberCommands > 0){
 
-        rwlock_state = 0; /* rwlock? then this is a write lock */
-        thread_sync_lock();
-
+        if (pthread_rwlock_init(&lock, NULL) != 0){
+            fprintf(stderr, "Error: rwlock initialization failed.\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        pthread_rwlock_wrlock(&lock);
         const char* command = removeCommand();
         if (command == NULL){
-            thread_sync_unlock();
+            pthread_rwlock_unlock(&lock);
             continue;
         }
 
@@ -140,35 +128,29 @@ void* applyCommands(void* arg){
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue.\n");
-            thread_sync_unlock();
+            pthread_rwlock_unlock(&lock);
             exit(EXIT_FAILURE);
         }
-        thread_sync_unlock();
+        pthread_rwlock_unlock(&lock);
 
-        rwlock_state = 1; /* rwlock? then this is a read lock */
-        thread_sync_lock();
         int searchResult;
         switch (token) {
             case 'c':
                 switch (type) {
                     case 'f':
                         printf("Create file: %s.\n", name);
-                        thread_sync_unlock();
                         create(name, T_FILE);
                         break;
                     case 'd':
                         printf("Create directory: %s.\n", name);
-                        thread_sync_unlock();
                         create(name, T_DIRECTORY);
                         break;
                     default:
                         fprintf(stderr, "Error: invalid node type.\n");
-                        thread_sync_unlock();
                         exit(EXIT_FAILURE);
                 }
                 break;
             case 'l':
-                thread_sync_unlock();
                 searchResult = lookup(name);
                 if (searchResult >= 0){
                     printf("Search: %s found.\n", name);
@@ -178,127 +160,16 @@ void* applyCommands(void* arg){
                 break;
             case 'd':
                 printf("Delete: %s.\n", name);
-                thread_sync_unlock();
                 delete(name);
                 break;
             default: { /* error */
                 fprintf(stderr, "Error: command to apply.\n");
-                thread_sync_unlock();
                 exit(EXIT_FAILURE);
             }
         }
     }
     return NULL;
 }
-
-void thread_sync_init(){
-
-    switch(syncstrategy){
-
-        case RWLOCK:
-            if (pthread_rwlock_init(&rwlock, NULL) != 0){
-                fprintf(stderr, "Error: rwlock initialization failed.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case MUTEX:
-            if (pthread_mutex_init(&lock, NULL) != 0){
-                fprintf(stderr, "Error: mutex initialization failed.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case NOSYNC:
-            break;
-
-        default:
-            fprintf(stderr, "Error: wrong syncstrategy failed.\n");
-            exit(EXIT_FAILURE);
-    }
-}
-
-void thread_sync_destroy(){
-
-    switch(syncstrategy){
-
-        case RWLOCK:
-            if (pthread_rwlock_destroy(&rwlock) != 0){
-                fprintf(stderr, "Error: rwlock destroy failed.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case MUTEX:
-            if (pthread_mutex_destroy(&lock) != 0){
-                fprintf(stderr, "Error: mutex destroy failed.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case NOSYNC:
-            break;
-
-        default:
-            fprintf(stderr, "Error: wrong syncstrategy failed.\n");
-            exit(EXIT_FAILURE);
-    }
-}
-
-void thread_sync_lock(){
-
-    switch(syncstrategy){
-
-        case RWLOCK:
-            if(rwlock_state == 0)
-                if (pthread_rwlock_wrlock(&rwlock) != 0){
-                    fprintf(stderr, "Error: write lock failed.\n");
-                    exit(EXIT_FAILURE);
-                }
-            if(rwlock_state == 1)
-                if (pthread_rwlock_rdlock(&rwlock) != 0){
-                    fprintf(stderr, "Error: read lock failed.\n");
-                    exit(EXIT_FAILURE);
-                }
-            break;
-
-        case MUTEX:
-            if (pthread_mutex_lock(&lock) != 0){
-                fprintf(stderr, "Error: mutex lock failed.\n");
-                exit(EXIT_FAILURE);
-            }
-            break;
-
-        case NOSYNC:
-            break;
-
-        default:
-            fprintf(stderr, "Error: wrong syncstrategy failed.\n");
-            exit(EXIT_FAILURE);
-    }
-}
-
-void thread_sync_unlock(){
-
-    switch(syncstrategy){
-
-        case RWLOCK:
-            pthread_rwlock_unlock(&rwlock);
-            break;
-
-        case MUTEX:
-            pthread_mutex_unlock(&lock);
-            break;
-
-        case NOSYNC:
-            break;
-
-        default:
-            fprintf(stderr, "Error: wrong syncstrategy failed.\n");
-            exit(EXIT_FAILURE);
-    }
-}
-
 
 /* this function create a pool of threads */
 void poolThreads(){
@@ -320,10 +191,10 @@ void poolThreads(){
 /* this function gets the command line arguments and parses them to their corresponding variables */
 void assignArgs(int argc, char* argv[]){
 
-    /*  |  ./tecnicofs | input_file | output_file | numthreads | syncstrategy  |
-        |      0       |    1       |    2        |    3       |     4         | TOTAL: 5
+    /*  |  ./tecnicofs | input_file | output_file | numthreads |
+        |      0       |    1       |    2        |    3       | TOTAL: 4
     */
-    if (argc == 5){
+    if (argc == 4){
 
         input_file = argv[1];
         output_file = argv[2];
@@ -334,37 +205,9 @@ void assignArgs(int argc, char* argv[]){
             fprintf(stderr, "Error: invalid number of threads (>0).\n");
             exit(EXIT_FAILURE);
         }
-
-        /* check the syncstrategy */
-        if (strcmp(argv[4], "mutex") == 0){
-            if (numthreads == 1){
-                fprintf(stderr, "Error: number of threads for mutex must be greater than 1.\n");
-                exit(EXIT_FAILURE);
-            }
-            syncstrategy = MUTEX;
-        }
-        else if (strcmp(argv[4], "rwlock") == 0){
-            if (numthreads == 1){
-                fprintf(stderr, "Error: number of threads for rwlock must be greater than 1.\n");
-                exit(EXIT_FAILURE);
-            }
-            syncstrategy = RWLOCK;
-        }
-        else if (strcmp(argv[4], "nosync") == 0){
-            /* NOSYNC requires 1 thread */
-            if (numthreads != 1){
-                fprintf(stderr, "Error: number of threads for nosync must be 1.\n");
-                exit(EXIT_FAILURE);
-            }
-            syncstrategy = NOSYNC;
-        }
-        else{
-            fprintf(stderr, "Error: invalid syncstrategy.\n");
-            exit(EXIT_FAILURE);
-        }
     }
     else{
-        fprintf(stderr, "Error: the command line must have 5 arguments.\n");
+        fprintf(stderr, "Error: the command line must have 4 arguments.\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -394,9 +237,6 @@ int main(int argc, char* argv[]){
     /* process input and save it in a buffer*/
     processInput();
 
-    /* start the syncstrategy */
-    thread_sync_init();
-
     /* starts the clock */
     clock_t begin = clock();
 
@@ -406,9 +246,6 @@ int main(int argc, char* argv[]){
     /* write the output in the output_file and close it */
     print_tecnicofs_tree(file);
     fclose(file);
-
-    /* finishes the syncstrategy */
-    thread_sync_destroy();
 
     /* release allocated memory */
     destroy_fs();
