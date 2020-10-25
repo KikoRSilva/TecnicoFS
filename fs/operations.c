@@ -45,10 +45,10 @@ void split_parent_child_from_path(char * path, char ** parent, char ** child) {
  */
 void init_fs() {
 	inode_table_init();
-	
+
 	/* create root inode */
 	int root = inode_create(T_DIRECTORY);
-	
+
 	if (root != FS_ROOT) {
 		printf("failed to create node for tecnicofs root\n");
 		exit(EXIT_FAILURE);
@@ -115,7 +115,6 @@ int lookup_sub_node(char *name, DirEntry *entries) {
  * Returns: SUCCESS or FAIL
  */
 int create(char *name, type nodeType){
-
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
 	/* use for copy */
@@ -149,6 +148,13 @@ int create(char *name, type nodeType){
 
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
+
+	/*initialization of child's rwlock*/
+	inode_table[child_inumber].data.lock = PTHREAD_RWLOCK_INITIALIZER;
+
+	/*locks child's lock*/
+	pthread_rwlock_wrlock(&inode_table[child_inumber].data.lock);
+
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
@@ -160,7 +166,7 @@ int create(char *name, type nodeType){
 		       child_name, parent_name);
 		return FAIL;
 	}
-
+	pthread_rwlock_unlock(&inode_table[child_inumber].data.lock);
 	return SUCCESS;
 }
 
@@ -259,8 +265,13 @@ int lookup(char *name) {
 
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
-		pthread_rwlock_rdlock(&lock);
-		data.is_locked = true;
+
+		/*current_inumber is parents inumber, so we initialize parent's lock */
+		inode_table[current_inumber].data.lock = PTHREAD_RWLOCK_INITIALIZER;
+
+		/*locks parent's lock*/
+		pthread_rwlock_rdlock(&inode_table[current_inumber].data.lock);
+
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
