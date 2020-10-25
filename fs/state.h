@@ -19,7 +19,6 @@
 
 #define DELAY 5000
 
-static pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 /*
  * Contains the name of the entry and respective i-number
  */
@@ -34,13 +33,13 @@ typedef struct dirEntry {
 union Data {
 	char *fileContents; /* for files */
 	DirEntry *dirEntries; /* for directories */
-	bool is_locked;
+	pthread_rwlock_t lock; /* inode's rwlock */
 };
 
 /*
  * I-node definition
  */
-typedef struct inode_t {    
+typedef struct inode_t {
 	type nodeType;
 	union Data data;
     /* more i-node attributes will be added in future exercises */
