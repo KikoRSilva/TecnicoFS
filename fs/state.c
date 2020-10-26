@@ -5,9 +5,6 @@
 #include "state.h"
 #include "../tecnicofs-api-constants.h"
 
-inode_t inode_table[INODE_TABLE_SIZE];
-
-
 /*
  * Sleeps for synchronization testing.
  */
@@ -24,6 +21,7 @@ void inode_table_init() {
         inode_table[i].nodeType = T_NONE;
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
+        pthread_rwlock_init(&inode_table[i].data.lock, NULL);
     }
 }
 
@@ -36,8 +34,10 @@ void inode_table_destroy() {
         if (inode_table[i].nodeType != T_NONE) {
             /* as data is an union, the same pointer is used for both dirEntries and fileContents */
             /* just release one of them */
-	  if (inode_table[i].data.dirEntries)
-            free(inode_table[i].data.dirEntries);
+	        if (inode_table[i].data.dirEntries){
+                free(inode_table[i].data.dirEntries);
+                pthread_rwlock_destroy(&inode_table[i].data.lock);
+            }
         }
     }
 }
@@ -64,12 +64,10 @@ int inode_create(type nType) {
                 
                 for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
                     inode_table[inumber].data.dirEntries[i].inumber = FREE_INODE;
-                    pthread_rwlock_init(&lock, NULL);
                 }
             }
             else {
                 inode_table[inumber].data.fileContents = NULL;
-                pthread_rwlock_init(&lock, NULL);
             }
             return inumber;
         }
@@ -96,7 +94,7 @@ int inode_delete(int inumber) {
     /* see inode_table_destroy function */
     if (inode_table[inumber].data.dirEntries){
         free(inode_table[inumber].data.dirEntries);
-        pthread_rwlock_destroy(&lock);
+        pthread_rwlock_destroy(&inode_table[inumber].data.lock);
     }
     return SUCCESS;
 }

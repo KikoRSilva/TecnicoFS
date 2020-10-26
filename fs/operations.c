@@ -134,7 +134,7 @@ int create(char *name, type nodeType){
 
 	inode_get(parent_inumber, &pType, &pdata);
 
-	if(pType != T_DIRECTORY) {
+	if (pType != T_DIRECTORY) {
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
 		return FAIL;
@@ -148,9 +148,6 @@ int create(char *name, type nodeType){
 
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
-
-	/*initialization of child's rwlock*/
-	inode_table[child_inumber].data.lock = PTHREAD_RWLOCK_INITIALIZER;
 
 	/*locks child's lock*/
 	pthread_rwlock_wrlock(&inode_table[child_inumber].data.lock);
@@ -266,15 +263,16 @@ int lookup(char *name) {
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 
-		/*current_inumber is parents inumber, so we initialize parent's lock */
-		inode_table[current_inumber].data.lock = PTHREAD_RWLOCK_INITIALIZER;
-
 		/*locks parent's lock*/
 		pthread_rwlock_rdlock(&inode_table[current_inumber].data.lock);
 
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
+
+	if (current_inumber != FAIL || current_inumber == FS_ROOT)
+		/* locks child's lock */
+		pthread_rwlock_wrlock(&inode_table[current_inumber].data.lock);
 
 	return current_inumber;
 }
