@@ -19,6 +19,7 @@
 
 #define DELAY 5000
 
+
 /*
  * Contains the name of the entry and respective i-number
  */
@@ -33,7 +34,6 @@ typedef struct dirEntry {
 union Data {
 	char *fileContents; /* for files */
 	DirEntry *dirEntries; /* for directories */
-	pthread_rwlock_t lock; /* inode's rwlock */
 };
 
 /*
@@ -41,12 +41,12 @@ union Data {
  */
 typedef struct inode_t {
 	type nodeType;
+	pthread_rwlock_t lock; /* inode's rwlock */
 	union Data data;
     /* more i-node attributes will be added in future exercises */
 } inode_t;
 
 inode_t inode_table[INODE_TABLE_SIZE];
-
 void insert_delay(int cycles);
 void inode_table_init();
 void inode_table_destroy();
