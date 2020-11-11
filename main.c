@@ -112,7 +112,7 @@ void* applyCommands(void* arg){
             exit(EXIT_FAILURE);
         }
 
-        rwlock_write(lock);
+        pthread_rwlock_wrlock(&lock);
         const char* command = removeCommand();
         if (command == NULL){
             pthread_rwlock_unlock(&lock);
@@ -147,7 +147,7 @@ void* applyCommands(void* arg){
                 }
                 break;
             case 'l':
-                searchResult = lookup(name, LOOKUP);
+                searchResult = search(name, LOOKUP);
                 if (searchResult >= 0){
                     printf("Search: %s found.\n", name);
                   }
