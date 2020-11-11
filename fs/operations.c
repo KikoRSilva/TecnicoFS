@@ -7,21 +7,23 @@
  * Input:
  *  - lock: lock
  */
-void rwlock_read(pthread_rwlock_t lock) {
-	if(pthread_rwlock_rdlock(&lock) != 0) {
+void rwlock_read(int i) {
+	if(pthread_rwlock_rdlock(&inode_table[i].lock) != 0) {
 		fprintf(stderr, "Error: Failed to read-lock inode.\n");
 		exit(EXIT_FAILURE);
 	}
+	printf("O inumber: %d foi trancado para leitura!\n", i);
 }
 /* Given a lock, this function will lock that lock for writing
  * Input:
  *  - lock: lock
  */
-void rwlock_write(pthread_rwlock_t lock) {
-	if(pthread_rwlock_wrlock(&lock) != 0) {
+void rwlock_write(int i) {
+	if(pthread_rwlock_wrlock(&inode_table[i].lock) != 0) {
 		fprintf(stderr, "Error: Failed to write-lock inode.\n");
 		exit(EXIT_FAILURE);
 	}
+	printf("O inumber: %d foi trancado para escrita!\n", i);
 }
 
 /* Given a path, fills pointers with strings for the parent path and child
@@ -137,6 +139,7 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 int create(char *name, type nodeType){
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
+	ArrayLocks *arr = NULL;
 
 	/* use for copy */
 	type pType;
@@ -145,12 +148,13 @@ int create(char *name, type nodeType){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = lookup(parent_name, CREATE);
+	parent_inumber = lookup(parent_name, CREATE, arr);
+	printf("Debug: Saquei do lookup este parent_inumber = %d.\n", parent_inumber);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -159,7 +163,7 @@ int create(char *name, type nodeType){
 	if(pType != T_DIRECTORY) {
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -175,17 +179,17 @@ int create(char *name, type nodeType){
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
-	unlocknodes(arrlocks);
+	unlocknodes(arr);
 	return SUCCESS;
 }
 
@@ -195,14 +199,16 @@ int create(char *name, type nodeType){
  *  - arrlocks: array of lock's inumber
  * Returns: Nothing
  */
-void unlocknodes(int arrlocks[]) {
-	for (int pos = 0; pos < INODE_TABLE_SIZE; pos++) {
-		int i = arrlocks[pos];
+void unlocknodes(ArrayLocks *arr) {
+	for (int pos = 0; pos <= arr->contador; pos++) {
+		int i = arr->locks[pos];
 		if (pthread_rwlock_unlock(&inode_table[i].lock) != 0) {
 			fprintf(stderr, "Error: failed unlocking locks.\n");
 			exit(EXIT_FAILURE);
 		}
+		printf("Destranca o inumber: %d !\n", i);
 	}
+	printf("\n---Tudo destrancado---\n");
 }
 
 /*
@@ -215,6 +221,7 @@ int delete(char *name){
 
 	int parent_inumber, child_inumber;
 	char *parent_name, *child_name, name_copy[MAX_FILE_NAME];
+	ArrayLocks *arr = NULL;
 
 	/* use for copy */
 	type pType, cType;
@@ -223,12 +230,12 @@ int delete(char *name){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = lookup(parent_name, DELETE);
+	parent_inumber = lookup(parent_name, DELETE, arr);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -237,7 +244,7 @@ int delete(char *name){
 	if(pType != T_DIRECTORY) {
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -246,7 +253,7 @@ int delete(char *name){
 	if (child_inumber == FAIL) {
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -255,7 +262,7 @@ int delete(char *name){
 	if (cType == T_DIRECTORY && is_dir_empty(cdata.dirEntries) == FAIL) {
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
@@ -263,21 +270,26 @@ int delete(char *name){
 	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
 
 	if (inode_delete(child_inumber) == FAIL) {
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
-		unlocknodes(arrlocks);
+		unlocknodes(arr);
 		return FAIL;
 	}
-	unlocknodes(arrlocks);
+	unlocknodes(arr);
 	return SUCCESS;
 }
 
-
+int search(char *name, int function_type) {
+	ArrayLocks *arr = NULL;
+	int lookupResult = lookup(name, function_type, arr);
+	unlocknodes(arr);
+	return lookupResult;
+}
 /*
  * Lookup for a given path.
  * Input:
@@ -286,11 +298,10 @@ int delete(char *name){
  *  inumber: identifier of the i-node, if found
  *     FAIL: otherwise
  */
-int lookup(char *name, int function_type) {
+int lookup(char *name, int function_type, ArrayLocks *arr) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 	char *saveptr;
-	int j = 0;
 	strcpy(full_path, name);
 
 
@@ -310,15 +321,21 @@ int lookup(char *name, int function_type) {
 	if (path == NULL) {
 		/* write-lock function Create or Delete if it is in root */
 		if (function_type == CREATE || function_type == DELETE) {
-			rwlock_write(inode_table[current_inumber].lock);
-			arrlocks[j] = current_inumber;
+			printf("Debug: Entrei na funcao create ou delete no ROOT!\n");
+			rwlock_write(current_inumber);
+			printf("DEBUG DEBUG DEBUG\n");
+			printf("Debug: ANTES: Numero do contador na estrutura: %d.\n", arr->contador);
+			arr->locks[0] = current_inumber;
+			printf("Debug: Current_inumber = %d.\n", current_inumber);
+			printf("Debug: DEPOIS: Numero do contador na estrutura: %d.\n", arr->locks[arr->contador]);
 			return current_inumber;
 		}	 
 	}
 
 	/* read-locks root since it has subnodes */
-	rwlock_read(inode_table[current_inumber].lock);
-	arrlocks[j++] = current_inumber;
+	rwlock_read(current_inumber);
+	arr->locks[arr->contador++] = current_inumber;
+	
 
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
@@ -327,16 +344,14 @@ int lookup(char *name, int function_type) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok_r(NULL, delim, &saveptr);
 		if (path == NULL && (function_type == CREATE || function_type == DELETE)) {
-			rwlock_write(inode_table[current_inumber].lock);
-			arrlocks[j] = current_inumber;
+			rwlock_write(current_inumber);
+			arr->locks[arr->contador++] = current_inumber;
 		} else {
 			/* read locks node because there is at least one more subnode */
-			rwlock_read(inode_table[current_inumber].lock);
-			arrlocks[j++] = current_inumber;
+			rwlock_read(current_inumber);
+			arr->locks[arr->contador++] = current_inumber;
 		}
 	}
-	if (function_type == LOOKUP)
-		unlocknodes(arrlocks);
 
 	return current_inumber;
 }

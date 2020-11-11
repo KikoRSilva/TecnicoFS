@@ -123,7 +123,7 @@ int inode_get(int inumber, type *nType, union Data *data) {
     insert_delay(DELAY);
 
     if ((inumber < 0) || (inumber > INODE_TABLE_SIZE) || (inode_table[inumber].nodeType == T_NONE)) {
-        printf("inode_get: invalid inumber %d\n", inumber);
+        fprintf(stderr, "Error @ inode_get: invalid inumber %d\n", inumber);
         return FAIL;
     }
 

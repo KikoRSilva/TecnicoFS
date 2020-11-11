@@ -7,16 +7,22 @@
 #define LOOKUP 3
 #define MOVE 4
 
-void rwlock_read(pthread_rwlock_t lock);
-void rwlock_write(pthread_rwlock_t lock);
+typedef struct ArrayLock {
+    int contador;
+    int locks[INODE_TABLE_SIZE];
+} ArrayLocks;
+
+void rwlock_read(int i);
+void rwlock_write(int i);
 void init_fs();
 void destroy_fs();
 int is_dir_empty(DirEntry *dirEntries);
 int create(char *name, type nodeType);
 int delete(char *name);
-int lookup(char *name, int function_type);
-void unlocknodes(int arrlocks[]);
+int search(char *name, int function_type);
+int lookup(char *name, int function_type, ArrayLocks *arr);
+void unlocknodes(ArrayLocks *arr);
 void print_tecnicofs_tree(FILE *fp);
-int arrlocks[INODE_TABLE_SIZE];
+
 
 #endif /* FS_H */
