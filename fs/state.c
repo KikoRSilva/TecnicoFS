@@ -102,10 +102,8 @@ int inode_delete(int inumber) {
 
     inode_table[inumber].nodeType = T_NONE;
     /* see inode_table_destroy function */
-    if (inode_table[inumber].data.dirEntries){
+    if (inode_table[inumber].data.dirEntries)
         free(inode_table[inumber].data.dirEntries);
-        pthread_rwlock_destroy(&inode_table[inumber].lock);
-    }
     return SUCCESS;
 }
 
