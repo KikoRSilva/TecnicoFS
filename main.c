@@ -9,35 +9,44 @@
 
 
 /*------------------------ Macros ----------------------*/
-#define MAX_COMMANDS 150000
+#define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
 /*---------------------- Global variables section ----------------------*/
 int numthreads = 0;
 pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cmd;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
-int numberCommands = 0;
-int headQueue = 0;
+int numberCommands = 0; // f
+int headQueue = 0; // i
+int nv = MAX_COMMANDS;
 
 char* input_file;
 char* output_file;
 
 /* --------------- Functions ---------------*/
 int insertCommand(char* data) {
-    if(numberCommands != MAX_COMMANDS) {
+    pthread_mutex_lock(&mutex);
+    if(numberCommands < MAX_COMMANDS) {
         strcpy(inputCommands[numberCommands++], data);
+        pthread_cond_signal(&cmd);
+        pthread_mutex_unlock(&mutex);
         return 1;
     }
+    pthread_mutex_unlock(&mutex);
     return 0;
 }
 
 char* removeCommand() {
-    if(numberCommands > 0){
-        numberCommands--;
-        return inputCommands[headQueue++];
+    pthread_mutex_lock(&mutex);
+    while (numberCommands == 0){
+        pthread_cond_wait(&cmd, &mutex);
     }
-    return NULL;
+    numberCommands--;
+    pthread_mutex_unlock(&mutex);
+    return inputCommands[headQueue++];
 }
 
 void errorParse(){
@@ -112,10 +121,8 @@ void* applyCommands(void* arg){
             exit(EXIT_FAILURE);
         }
 
-        pthread_rwlock_wrlock(&lock);
         const char* command = removeCommand();
         if (command == NULL){
-            pthread_rwlock_unlock(&lock);
             continue;
         }
 
@@ -124,10 +131,8 @@ void* applyCommands(void* arg){
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue.\n");
-            pthread_rwlock_unlock(&lock);
             exit(EXIT_FAILURE);
         }
-        pthread_rwlock_unlock(&lock);
 
         int searchResult;
         switch (token) {
