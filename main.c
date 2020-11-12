@@ -11,14 +11,10 @@
 /*------------------------ Macros ----------------------*/
 #define MAX_COMMANDS 150000
 #define MAX_INPUT_SIZE 100
-#define MAX_SYNCSTRAT 3
-
-#define MUTEX 1
-#define RWLOCK 2
-#define NOSYNC 3
 
 /*---------------------- Global variables section ----------------------*/
 int numthreads = 0;
+pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
@@ -115,7 +111,7 @@ void* applyCommands(void* arg){
             fprintf(stderr, "Error: rwlock initialization failed.\n");
             exit(EXIT_FAILURE);
         }
-        
+
         pthread_rwlock_wrlock(&lock);
         const char* command = removeCommand();
         if (command == NULL){
@@ -151,7 +147,7 @@ void* applyCommands(void* arg){
                 }
                 break;
             case 'l':
-                searchResult = lookup(name);
+                searchResult = search(name, LOOKUP);
                 if (searchResult >= 0){
                     printf("Search: %s found.\n", name);
                   }
@@ -212,6 +208,7 @@ void assignArgs(int argc, char* argv[]){
     }
 }
 
+
 int main(int argc, char* argv[]){
 
     FILE *file;
@@ -219,7 +216,6 @@ int main(int argc, char* argv[]){
 
     /* parse the arguments */
     assignArgs(argc, argv);
-
     /* open the output_file to write the final tecnicofs */
     file = fopen(output_file, "w");
 
@@ -227,36 +223,28 @@ int main(int argc, char* argv[]){
         fprintf(stderr, "Error: unable to open the output file.\n");
         exit(EXIT_FAILURE);
     }
-
     /* open the output_file to write the final tecnicofs */
     file = fopen(output_file, "w");
-
     /* init filesystem */
     init_fs();
-
     /* process input and save it in a buffer*/
     processInput();
-
     /* starts the clock */
     clock_t begin = clock();
-
     /* create a pool of threads */
     poolThreads();
-
     /* write the output in the output_file and close it */
     print_tecnicofs_tree(file);
     fclose(file);
-
     /* release allocated memory */
     destroy_fs();
-
     /* ends clock and shows time*/
     clock_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     sprintf(aux,"%.4f", time_spent);
     printf("TecnicoFS completed in %s seconds.\n", aux);
-	
-    /* tudo correu bem */
+
+    /* Success */
     exit(EXIT_SUCCESS);
 
 }
