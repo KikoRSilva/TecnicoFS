@@ -11,7 +11,7 @@ typedef struct ArrayLock {
     int contador;
     int locks[INODE_TABLE_SIZE];
 } ArrayLocks;
-
+struct timespec begin, end;
 void rwlock_read(int i);
 void rwlock_write(int i);
 void init_fs();

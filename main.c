@@ -59,7 +59,9 @@ void processInput(){
     char line[MAX_INPUT_SIZE];
     FILE *file;
 
+
     file = fopen(input_file, "r");
+    clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
 
     if (file == NULL){
         fprintf(stderr, "Error: unable to open the file.\n");
@@ -217,7 +219,6 @@ void assignArgs(int argc, char* argv[]){
 int main(int argc, char* argv[]){
 
     FILE *file;
-    char aux[50];
 
     /* parse the arguments */
     assignArgs(argc, argv);
@@ -234,8 +235,6 @@ int main(int argc, char* argv[]){
     init_fs();
     /* process input and save it in a buffer*/
     processInput();
-    /* starts the clock */
-    clock_t begin = clock();
     /* create a pool of threads */
     poolThreads();
     /* write the output in the output_file and close it */
@@ -244,10 +243,9 @@ int main(int argc, char* argv[]){
     /* release allocated memory */
     destroy_fs();
     /* ends clock and shows time*/
-    clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    sprintf(aux,"%.4f", time_spent);
-    printf("TecnicoFS completed in %s seconds.\n", aux);
+    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+    printf("TecnicoFS completed in %0.4f seconds.\n", (end.tv_nsec - begin.tv_nsec) / 1000000000.0 +
+            (end.tv_sec  - begin.tv_sec));
 
     /* Success */
     exit(EXIT_SUCCESS);
