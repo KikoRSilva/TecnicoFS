@@ -8,8 +8,9 @@ for input in $inputdir/*.txt
 do
 	for i in $(seq 1 $maxthread)
 	do
-		output="$input-$i"
+		output="$((basename $input) | sed "s/\.[a-z]*//g")-$i"
 		echo InputFile=$input NumThread=$i
-		./tecnicofs $input $output $i
+		./tecnicofs $input $outputdir/$output.txt $i | sed -n '$p'
+		./tecnicofs $input $outputdir/$output.txt $i > $outputdir/$output.txt
 	done
 done
