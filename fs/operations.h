@@ -5,7 +5,6 @@
 #define CREATE 1
 #define DELETE 2
 #define LOOKUP 3
-#define MOVE 4
 
 typedef struct ArrayLock {
     int contador;

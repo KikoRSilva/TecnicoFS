@@ -54,7 +54,7 @@ void errorParse(){
     exit(EXIT_FAILURE);
 }
 
-void processInput(){
+void processInput(){ 
 
     char line[MAX_INPUT_SIZE];
     FILE *file;
@@ -87,7 +87,12 @@ void processInput(){
                 if(insertCommand(line))
                     break;
                 return;
-
+            case 'm':
+                if(numTokens != 3)
+                    errorParse();
+                if(insertCommand(line))
+                    break;
+                return;
             case 'l':
                 if(numTokens != 2)
                     errorParse();
@@ -128,9 +133,10 @@ void* applyCommands(void* arg){
             continue;
         }
 
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+        char token;
+        char name[MAX_INPUT_SIZE], char last_name[MAX_INPUT_SIZE];
+        int numTokens = sscanf(command, "%c %s %s", &token, name, last_name);
+
         if (numTokens < 2) {
             fprintf(stderr, "Error: invalid command in Queue.\n");
             exit(EXIT_FAILURE);
@@ -139,7 +145,7 @@ void* applyCommands(void* arg){
         int searchResult;
         switch (token) {
             case 'c':
-                switch (type) {
+                switch (last_name) {
                     case 'f':
                         printf("Create file: %s.\n", name);
                         create(name, T_FILE);
@@ -152,6 +158,10 @@ void* applyCommands(void* arg){
                         fprintf(stderr, "Error: invalid node type.\n");
                         exit(EXIT_FAILURE);
                 }
+                break;
+            case 'm':
+                printf("Move directory: %s.\n", name);
+                move(name, last_name);
                 break;
             case 'l':
                 searchResult = search(name, LOOKUP);

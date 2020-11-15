@@ -215,6 +215,61 @@ void unlocknodes(ArrayLocks *arr) {
 	}
 }
 
+void move(char* name, char* last_name){
+	int parent_inumber, new_parent_inumber, child_inumber, new_child_inumber;
+	char *parent_name, *new_parent_name, *child_name, *new_child_name, name_copy[MAX_FILE_NAME], new_name_copy[MAX_FILE_NAME];
+	ArrayLocks *arr = malloc(sizeof(ArrayLocks));
+	arr->contador = 0;
+
+	type pType;
+	union Data pdata;
+
+	strcpy(name_copy, name);
+	split_parent_child_from_path(name_copy, &parent_name, &child_name);
+
+	parent_inumber = lookup(parent_name, LOOKUP, arr);
+
+	if (parent_inumber == FAIL) {
+		printf("failed to find %s, invalid parent dir %s\n",
+		        child_name, parent_name);
+		unlocknodes(arr);
+		free(arr);
+		exit(EXIT_FAILURE);
+	}
+
+	inode_get(parent_inumber, &pType, &pdata);
+
+	strcpy(new_name_copy, last_name);
+	split_parent_child_from_path(new_name_copy, &new_parent_name, &new_child_name);
+
+	new_parent_inumber = lookup(new_parent_name, LOOKUP, arr);
+
+	if (new_parent_inumber == FAIL){
+		printf("new directory %s does not exist, invalid parent dir\n", new_parent_name);
+		unlocknodes(arr);
+		free(arr);
+		exit(EXIT_FAILURE);
+
+	}
+
+	new_child_inumber = lookup(new_child_name, LOOKUP, arr);
+	if (new_parent_inumber != FAIL){
+		printf("new directory %s already exists, invalid child dir\n", new_parent_name);
+		unlocknodes(arr);
+		free(arr);
+		exit(EXIT_FAILURE);
+
+	}
+
+
+
+	create(new_parent_name, pType);
+
+	delete(parent_name);
+
+	unlocknodes(arr);
+	free(arr);
+}
 /*
  * Deletes a node given a path.
  * Input:
