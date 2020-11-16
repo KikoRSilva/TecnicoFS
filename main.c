@@ -9,11 +9,13 @@
 #include "circularqueue/circularqueue.h"
 
 
-/*------------------------ Macros ----------------------*/
+////////////////////////////////////// Macros ////////////////////////////////////////////
 #define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
+#define TRUE 1
+#define FALSE 0
 
-/*---------------------- Global variables section ----------------------*/
+////////////////////////////////////// Global Variables ////////////////////////////////////////////
 int numthreads = 0;
 pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -29,16 +31,67 @@ char* output_file;
 
 CircularQueue *queue;
 
+////////////////////////////////////// Sync Functions ////////////////////////////////////////////
+void init_mutex() {
+    if(pthread_mutex_init(&mutex, NULL)){
+        fprintf(stderr, "Error: Failed to init the mutex lock.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void mutex_lock(){
+    if(pthread_mutex_lock(&mutex)){
+        fprintf(stderr, "Error: Failed to lock mutex.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void mutex_unlock(){
+     if(pthread_mutex_unlock(&mutex)){
+        fprintf(stderr, "Error: Failed to unlock mutex.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void destroy_mutex(){
+    if(pthread_mutex_destroy(&mutex)){
+        fprintf(stderr, "Error: Failed to destroy mutex.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void wait(pthread_cond_t *varCond){
+    if(pthread_cond_wait(varCond, &mutex)){
+        fprintf(stderr, "Error: Failed to wait.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void signal(pthread_cond_t *varCond){
+    if(pthread_cond_signal(varCond)){
+        fprintf(stderr, "Error: Failed to signal.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void broadcast(pthread_cond_t *varCond){
+    if(pthread_cond_broadcast(varCond)){
+        fprintf(stderr, "Error: Failed to broadcast.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 ////////////////////////////////////// Functions ////////////////////////////////////////////
+
 int insertCommand(char* data) {
 
     mutex_lock();               // start of critical section
 
     while (isFull(queue))
-        wait(untilNotFull);
+        wait(&untilNotFull);
     enQueue(queue, data);
     numberCommands++;
-    signal(%untilNotEmpty);
+    signal(&untilNotEmpty);
 
     mutex_unlock();             // end of critical section
 
@@ -51,15 +104,17 @@ char* removeCommand() {
 
     char* rmvCommand;
 
-    while(isEmpty(queue) && queue->isCompleted == 0)
-        wait(&untilNotEmpty);
+    if (isEmpty(queue) && queue->isCompleted) {
+        mutex_unlock();
+        return NULL;
+    }
 
+    while(isEmpty(queue) && !queue->isCompleted)
+        wait(&untilNotEmpty);
     rmvCommand = deQueue(queue);
     numberCommands--;
     signal(&untilNotFull);
-
     mutex_unlock();             // end of critical section
-
     return rmvCommand;
 }
 
@@ -137,16 +192,16 @@ void processInput(){
 
 void* applyCommands(void* arg){
 
-    while (!isEmpty(queue) || !queue->isCompleted){
-
+    while (TRUE){
 
         const char* command = removeCommand();
+
         if (command == NULL){
-            continue;
+            return NULL;
         }
 
         char token;
-        char name[MAX_INPUT_SIZE], char last_name[MAX_INPUT_SIZE];
+        char name[MAX_INPUT_SIZE], last_name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %s", &token, name, last_name);
 
         if (numTokens < 2) {
@@ -157,7 +212,7 @@ void* applyCommands(void* arg){
         int searchResult;
         switch (token) {
             case 'c':
-                switch (last_name) {
+                switch (last_name[0]) {
                     case 'f':
                         printf("Create file: %s.\n", name);
                         create(name, T_FILE);

@@ -6,11 +6,13 @@
 #include <string.h>
 
 #define SIZE 10
-#define MAX_INPUT_SIZE 100A
+#define MAX_INPUT_SIZE 100
 #define FULL 1
 #define NOTFULL 0
 #define EMPTY 1
 #define NOTEMPTY 0
+#define FAIL -1
+#define SUCCESS 0
 
 typedef struct Queue {
 
@@ -21,11 +23,12 @@ typedef struct Queue {
 } CircularQueue;
 
 CircularQueue* initQueue();
-void changeState(CircularQueue *queue)
+void changeState(CircularQueue *queue);
 void display(CircularQueue *queue);
 char* deQueue(CircularQueue *queue);
-void enQueue(CircularQueue *queue, char* element);
+int enQueue(CircularQueue *queue, char* element);
 int isEmpty(CircularQueue *queue); 
 int isFull(CircularQueue *queue);
+void destroyQueue(CircularQueue *queue);
 
 #endif

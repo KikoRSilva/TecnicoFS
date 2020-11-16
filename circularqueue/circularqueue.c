@@ -45,7 +45,6 @@ int enQueue(CircularQueue *queue, char* element) {
     strcpy(queue->inputCommands[queue->rear], element);
 
     return SUCCESS;
-  }
 }
 
 // remove elements
@@ -57,7 +56,7 @@ char* deQueue(CircularQueue *queue) {
   	return NULL;
   else {
 
-    element = queue->inputCommands[front];
+    element = queue->inputCommands[queue->front];
 
     if (queue->front == queue->rear) {
       queue->front = -1;
@@ -86,10 +85,10 @@ void display(CircularQueue *queue) {
     printf("DEBUG (QUEUE): Items -> ");
 
     for (i = queue->front; i != queue->rear; i = (i + 1) % SIZE) {
-      printf("%d ", queue->inputCommands[i]);
+      printf("%s ", queue->inputCommands[i]);
     }
 
-    printf("%d ", queue->inputCommands[i]);
+    printf("%s ", queue->inputCommands[i]);
     printf("DEBUG (QUEUE): Rear -> %d \n", queue->rear);
   }
 }

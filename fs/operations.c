@@ -24,53 +24,6 @@ void rwlock_write(int i) {
 	}
 }
 
-void init_mutex(){
-    if(pthread_mutex_init(&mutex, NULL)){
-		fprintf(stderr, "Error: Failed to init the mutex lock.\n");
-		exit(EXIT_FAILURE);
-	}
-
-void mutex_lock(){
-    if(pthread_mutex_lock(&mutex)){
-		fprintf(stderr, "Error: Failed to lock mutex.\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void mutex_unlock(){
-     if(pthread_mutex_unlock(&mutex)){
-		fprintf(stderr, "Error: Failed to unlock mutex.\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void mutex_destroy(){
-    if(pthread_mutex_destroy(&mutex)){
-		fprintf(stderr, "Error: Failed to destroy mutex.\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void wait(pthread_cond_t *varCond){
-    if(pthread_cond_wait(varCond, &mutex)){
-		fprintf(stderr, "Error: Failed to wait.\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void signal(pthread_cond_t *varCond){
-    if(pthread_cond_signal(varCond)){
-		fprintf(stderr, "Error: Failed to signal.\n");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void broadcast(pthread_cond_t *varCond){
-    if(pthread_cond_broadcast(varCond)){
-		fprintf(stderr, "Error: Failed to broadcast.\n");
-		exit(EXIT_FAILURE);
-	}
-}
 
 /* Given a path, fills pointers with strings for the parent path and child
  * file name
@@ -265,7 +218,7 @@ void unlocknodes(ArrayLocks *arr) {
 
 int move(char* name, char* last_name){
 
-	int parent_inumber, new_parent_inumber, child_inumber, new_child_inumber;
+	int parent_inumber, new_parent_inumber, child_inumber;
 	char *parent_name, *new_parent_name, *child_name, *new_child_name, name_copy[MAX_FILE_NAME], new_name_copy[MAX_FILE_NAME];
 	ArrayLocks *arr = malloc(sizeof(ArrayLocks));
 	arr->contador = 0;
@@ -288,6 +241,16 @@ int move(char* name, char* last_name){
 
 	inode_get(parent_inumber, &pType, &pdata);
 
+	child_inumber = lookup_sub_node(child_name, pdata.dirEntries);
+
+	if (child_inumber == FAIL) {
+		printf("Error: child %s does not exists in dir %s\n",
+		       child_name, parent_name);
+		unlocknodes(arr);
+		free(arr);
+		return FAIL;
+	}
+
 	strcpy(new_name_copy, last_name);
 	split_parent_child_from_path(new_name_copy, &new_parent_name, &new_child_name);
 
@@ -301,20 +264,30 @@ int move(char* name, char* last_name){
 
 	}
 
-	new_child_inumber = lookup(new_child_name, LOOKUP, arr);
-	if (new_parent_inumber != FAIL){
-		printf("new directory %s already exists, invalid child dir\n", new_parent_name);
+	inode_get(new_parent_inumber, &pType, &pdata);
+
+	if(pType != T_DIRECTORY) {
+		printf("new parent %s is not a dir\n", new_parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
-
 	}
 
+	if (dir_reset_entry(parent_inumber, child_inumber)) {
+        printf("could not reset entry %s in dir %s\n",
+               child_name, parent_name);
+        unlocknodes(arr);
+        free(arr);
+        return FAIL;
+    }
 
-
-	create(new_parent_name, pType);
-
-	delete(parent_name);
+    if (dir_add_entry(new_parent_inumber, child_inumber, new_child_name) == FAIL) {
+        printf("could not add entry %s in dir %s\n",
+               child_name, parent_name);
+        unlocknodes(arr);
+        free(arr);
+        return FAIL;
+    }
 
 	unlocknodes(arr);
 	free(arr);
