@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include "fs/operations.h"
 #include <time.h>
+#include "circularqueue/circularqueue.h"
 
 
 /*------------------------ Macros ----------------------*/
@@ -16,7 +17,7 @@
 int numthreads = 0;
 pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cmd;
+pthread_cond_t untilNotEmpty, untilNotFull;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0; // f
@@ -26,27 +27,40 @@ int nv = MAX_COMMANDS;
 char* input_file;
 char* output_file;
 
-/* --------------- Functions ---------------*/
+CircularQueue *queue;
+
+////////////////////////////////////// Functions ////////////////////////////////////////////
 int insertCommand(char* data) {
-    pthread_mutex_lock(&mutex);
-    if(numberCommands < MAX_COMMANDS) {
-        strcpy(inputCommands[numberCommands++], data);
-        pthread_cond_signal(&cmd);
-        pthread_mutex_unlock(&mutex);
-        return 1;
-    }
-    pthread_mutex_unlock(&mutex);
-    return 0;
+
+    mutex_lock();               // start of critical section
+
+    while (isFull(queue))
+        wait(untilNotFull);
+    enQueue(queue, data);
+    numberCommands++;
+    signal(%untilNotEmpty);
+
+    mutex_unlock();             // end of critical section
+
+    return SUCCESS;
 }
 
 char* removeCommand() {
-    pthread_mutex_lock(&mutex);
-    while (numberCommands == 0){
-        pthread_cond_wait(&cmd, &mutex);
-    }
+
+    mutex_lock();               // start of critical section
+
+    char* rmvCommand;
+
+    while(isEmpty(queue) && queue->isCompleted == 0)
+        wait(&untilNotEmpty);
+
+    rmvCommand = deQueue(queue);
     numberCommands--;
-    pthread_mutex_unlock(&mutex);
-    return inputCommands[headQueue++];
+    signal(&untilNotFull);
+
+    mutex_unlock();             // end of critical section
+
+    return rmvCommand;
 }
 
 void errorParse(){
@@ -116,17 +130,15 @@ void processInput(){
         }
     }
     fclose(file);
+    changeState(queue);
+    broadcast(&untilNotEmpty);
 }
 
 
 void* applyCommands(void* arg){
 
-    while (numberCommands > 0){
+    while (!isEmpty(queue) || !queue->isCompleted){
 
-        if (pthread_rwlock_init(&lock, NULL) != 0){
-            fprintf(stderr, "Error: rwlock initialization failed.\n");
-            exit(EXIT_FAILURE);
-        }
 
         const char* command = removeCommand();
         if (command == NULL){
@@ -241,17 +253,30 @@ int main(int argc, char* argv[]){
     }
     /* open the output_file to write the final tecnicofs */
     file = fopen(output_file, "w");
+    /* initialize condition variables and the mutex lock */
+    pthread_cond_init(&untilNotEmpty, NULL);
+    pthread_cond_init(&untilNotFull,NULL);
+    init_mutex();
     /* init filesystem */
     init_fs();
+    /* init CircularQueue */
+    queue = initQueue();
     /* process input and save it in a buffer*/
     processInput();
     /* create a pool of threads */
     poolThreads();
+    /* destroy the circular queue */
+    destroyQueue(queue);
     /* write the output in the output_file and close it */
     print_tecnicofs_tree(file);
     fclose(file);
     /* release allocated memory */
     destroy_fs();
+    /* destroy the mutex lock and condition variables*/
+    pthread_cond_destroy(&untilNotFull);
+    pthread_cond_destroy(&untilNotEmpty);
+    destroy_mutex();
+
     /* ends clock and shows time*/
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     printf("TecnicoFS completed in %0.4f seconds.\n", (end.tv_nsec - begin.tv_nsec) / 1000000000.0 +
