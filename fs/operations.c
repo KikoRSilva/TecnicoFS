@@ -71,7 +71,7 @@ void init_fs() {
 	int root = inode_create(T_DIRECTORY);
 
 	if (root != FS_ROOT) {
-		printf("failed to create node for tecnicofs root\n");
+		printf("Error: failed to create node for tecnicofs root\n");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -151,7 +151,7 @@ int create(char *name, type nodeType){
 	parent_inumber = lookup(parent_name, CREATE, arr);
 
 	if (parent_inumber == FAIL) {
-		printf("failed to create %s, invalid parent dir %s\n",
+		printf("Error: failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -161,7 +161,7 @@ int create(char *name, type nodeType){
 	inode_get(parent_inumber, &pType, &pdata);
 
 	if(pType != T_DIRECTORY) {
-		printf("failed to create %s, parent %s is not a dir\n",
+		printf("Error: failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -169,8 +169,7 @@ int create(char *name, type nodeType){
 	}
 
 	if (lookup_sub_node(child_name, pdata.dirEntries) != FAIL) {
-		printf("failed to create %s, already exists in dir %s\n",
-		       child_name, parent_name);
+		printf("Error: failed to create %s, already exists in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
@@ -180,16 +179,14 @@ int create(char *name, type nodeType){
 	child_inumber = inode_create(nodeType);
 
 	if (child_inumber == FAIL) {
-		printf("failed to create %s in  %s, couldn't allocate inode\n",
-		        child_name, parent_name);
+		printf("Error: failed to create %s in  %s, couldn't allocate inode\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
-		printf("could not add entry %s in dir %s\n",
-		       child_name, parent_name);
+		printf("Error: could not add entry %s in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
@@ -232,7 +229,7 @@ int move(char* name, char* last_name){
 	parent_inumber = lookup(parent_name, LOOKUP, arr);
 
 	if (parent_inumber == FAIL) {
-		printf("failed to find %s, invalid parent dir %s\n",
+		printf("Error: failed to find %s, invalid parent dir %s\n",
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -244,8 +241,7 @@ int move(char* name, char* last_name){
 	child_inumber = lookup_sub_node(child_name, pdata.dirEntries);
 
 	if (child_inumber == FAIL) {
-		printf("Error: child %s does not exists in dir %s\n",
-		       child_name, parent_name);
+		printf("Error: child %s does not exists in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
@@ -257,7 +253,7 @@ int move(char* name, char* last_name){
 	new_parent_inumber = lookup(new_parent_name, LOOKUP, arr);
 
 	if (new_parent_inumber == FAIL){
-		printf("new directory %s does not exist, invalid parent dir\n", new_parent_name);
+		printf("Error: new directory %s does not exist, invalid parent dir\n", new_parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
@@ -267,22 +263,21 @@ int move(char* name, char* last_name){
 	inode_get(new_parent_inumber, &pType, &pdata);
 
 	if(pType != T_DIRECTORY) {
-		printf("new parent %s is not a dir\n", new_parent_name);
+		printf("Error: new parent %s is not a dir\n", new_parent_name);
 		unlocknodes(arr);
 		free(arr);
 		return FAIL;
 	}
 
 	if (dir_reset_entry(parent_inumber, child_inumber)) {
-        printf("could not reset entry %s in dir %s\n",
-               child_name, parent_name);
+        printf("Error: could not reset entry %s in dir %s\n", child_name, parent_name);
         unlocknodes(arr);
         free(arr);
         return FAIL;
     }
 
     if (dir_add_entry(new_parent_inumber, child_inumber, new_child_name) == FAIL) {
-        printf("could not add entry %s in dir %s\n",
+        printf("Error: could not add entry %s in dir %s\n",
                child_name, parent_name);
         unlocknodes(arr);
         free(arr);
@@ -315,7 +310,7 @@ int delete(char *name){
 	parent_inumber = lookup(parent_name, DELETE, arr);
 
 	if (parent_inumber == FAIL) {
-		printf("failed to delete %s, invalid parent dir %s\n",
+		printf("Error: failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -325,7 +320,7 @@ int delete(char *name){
 	inode_get(parent_inumber, &pType, &pdata);
 
 	if(pType != T_DIRECTORY) {
-		printf("failed to delete %s, parent %s is not a dir\n",
+		printf("Error: failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -335,7 +330,7 @@ int delete(char *name){
 	child_inumber = lookup_sub_node(child_name, pdata.dirEntries);
 
 	if (child_inumber == FAIL) {
-		printf("could not delete %s, does not exist in dir %s\n",
+		printf("Error: could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -345,7 +340,7 @@ int delete(char *name){
 	inode_get(child_inumber, &cType, &cdata);
 
 	if (cType == T_DIRECTORY && is_dir_empty(cdata.dirEntries) == FAIL) {
-		printf("could not delete %s: is a directory and not empty\n",
+		printf("Error: could not delete %s: is a directory and not empty\n",
 		       name);
 		unlocknodes(arr);
 		free(arr);
@@ -354,7 +349,7 @@ int delete(char *name){
 
 	/* remove entry from folder that contained deleted node */
 	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
-		printf("failed to delete %s from dir %s\n",
+		printf("Error: failed to delete %s from dir %s\n",
 		       child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
@@ -362,7 +357,7 @@ int delete(char *name){
 	}
 
 	if (inode_delete(child_inumber) == FAIL) {
-		printf("could not delete inode number %d from dir %s\n",
+		printf("Error: could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
 		unlocknodes(arr);
 		free(arr);
