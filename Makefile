@@ -29,7 +29,7 @@ main.o: main.c fs/operations.h fs/state.h tecnicofs-api-constants.h
 
 clean:
 	@echo Cleaning...
-	rm -f fs/*.o *.o circularqueue/*.c tecnicofs
+	rm -f fs/*.o *.o circularqueue/*.o tecnicofs
 
 run: tecnicofs
 	./tecnicofs

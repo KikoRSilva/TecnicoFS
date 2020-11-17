@@ -19,7 +19,7 @@
 int numthreads = 0;
 pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t untilNotEmpty, untilNotFull;
+pthread_cond_t untilNotEmpty = PTHREAD_COND_INITIALIZER, untilNotFull = PTHREAD_COND_INITIALIZER;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0; // f
@@ -30,6 +30,8 @@ char* input_file;
 char* output_file;
 
 CircularQueue *queue;
+
+int Contador = 1;
 
 ////////////////////////////////////// Sync Functions ////////////////////////////////////////////
 void init_mutex() {
@@ -87,8 +89,11 @@ int insertCommand(char* data) {
 
     mutex_lock();               // start of critical section
 
-    while (isFull(queue))
+    while (isFull(queue)) {
+        printf("DEBUG (INSERTCOMMAND): ESTOU A ESPERA QUE HAJA ESPACO.\n");
         wait(&untilNotFull);
+    } 
+
     enQueue(queue, data);
     numberCommands++;
     signal(&untilNotEmpty);
@@ -102,20 +107,26 @@ char* removeCommand() {
 
     mutex_lock();               // start of critical section
 
-    char* rmvCommand;
+    char* removeCommand;
 
     if (isEmpty(queue) && queue->isCompleted) {
         mutex_unlock();
         return NULL;
     }
 
-    while(isEmpty(queue) && !queue->isCompleted)
-        wait(&untilNotEmpty);
-    rmvCommand = deQueue(queue);
+    while(isEmpty(queue) && !queue->isCompleted) {
+        printf("DEBUG (REMOVECOMMAND): ESTOU A ESPERA QUE FIQUE COM ALGUM COMANDO.\n");
+         wait(&untilNotEmpty);
+    }
+       
+
+    removeCommand = deQueue(queue);
     numberCommands--;
     signal(&untilNotFull);
+
     mutex_unlock();             // end of critical section
-    return rmvCommand;
+
+    return removeCommand;
 }
 
 void errorParse(){
@@ -123,7 +134,9 @@ void errorParse(){
     exit(EXIT_FAILURE);
 }
 
-void processInput(){ 
+void* processInput(){ 
+
+    printf("DEBUG (PROCESSINPUT): ENTREI NO PROCESSINPUT\n");
 
     char line[MAX_INPUT_SIZE];
     FILE *file;
@@ -153,28 +166,41 @@ void processInput(){
             case 'c':
                 if(numTokens != 3)
                     errorParse();
-                if(insertCommand(line))
+                printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
+                if(insertCommand(line)) {
+                    printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
                     break;
-                return;
+                }
+                    
+                return NULL;
             case 'm':
                 if(numTokens != 3)
                     errorParse();
-                if(insertCommand(line))
+                printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
+                if(insertCommand(line)) {
+                    printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
                     break;
-                return;
+                }
+                return NULL;
             case 'l':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
+                printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
+                if(insertCommand(line)) {
+                    printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
                     break;
-                return;
+                }
+                return NULL;
 
             case 'd':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
+                printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
+                if(insertCommand(line)) {
+                    printf("DEBUG (PROCESSINPUT): INSERI COMANDO: %s\n", line);
                     break;
-                return;
+                }
+                return NULL;
 
             case '#':
                 break;
@@ -186,19 +212,25 @@ void processInput(){
     }
     fclose(file);
     changeState(queue);
+    printf("AQUI\n");
     broadcast(&untilNotEmpty);
+    printf("ALI\n");
+    exit(EXIT_SUCCESS);
 }
 
 
 void* applyCommands(void* arg){
-
+    printf("DEBUG (APPLYCOMMANDS): ENTREI %d VEZES\n", Contador++);
     while (TRUE){
-
+        printf("DEBUG (APPLYCOMMANDS): VOU REMOVER COMANDO\n");
         const char* command = removeCommand();
+        
 
         if (command == NULL){
+            printf("DEBUG (APPLYCOMMANDS): NAO HA MAIS COMANDOS\n");
             return NULL;
         }
+        printf("DEBUG (APPLYCOMMANDS): REMOVI COMANDO: %s\n", command);
 
         char token;
         char name[MAX_INPUT_SIZE], last_name[MAX_INPUT_SIZE];
@@ -256,16 +288,33 @@ void poolThreads(){
 
     pthread_t tid[numthreads];
 
-    /* create slave (threads :) ) */
-    for (int i = 0; i < numthreads; i++)
-        if(pthread_create(&tid[i], NULL, &applyCommands, NULL) != 0){
-            fprintf(stderr, "Error: unable to create thread.\n");
+    /* create slave threads */
+    for (int i = 0; i < numthreads; i++) {
+        if (i == 0) {
+            if (pthread_create(&tid[i], NULL, &processInput, NULL) != 0) {
+                fprintf(stderr, "Error: unable to create processInput thread.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        else {
+            if (pthread_create(&tid[i], NULL, &applyCommands, NULL) != 0) {
+                fprintf(stderr, "Error: unable to create applyCommands thread.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    /* slave threads waiting to finish */
+    for (int i = 0; i < numthreads; i++) {
+        if (pthread_join(tid[i], NULL) != 0) {
+            if (i == 0) {
+                fprintf(stderr, "Error: unable to join processInput thread.\n");
+                exit(EXIT_FAILURE);
+            }
+            fprintf(stderr, "Error: unable to join applyCommands threads.\n");
             exit(EXIT_FAILURE);
         }
-
-    /* threads waiting to finish */
-    for (int i = 0; i < numthreads; i++)
-        pthread_join(tid[i], NULL);
+    }
 }
 
 /* this function gets the command line arguments and parses them to their corresponding variables */
@@ -316,9 +365,7 @@ int main(int argc, char* argv[]){
     init_fs();
     /* init CircularQueue */
     queue = initQueue();
-    /* process input and save it in a buffer*/
-    processInput();
-    /* create a pool of threads */
+    /* create a pool of threads & process input & apply commands*/
     poolThreads();
     /* destroy the circular queue */
     destroyQueue(queue);
