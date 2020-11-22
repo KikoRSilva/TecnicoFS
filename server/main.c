@@ -11,7 +11,6 @@
 #include <unistd.h>
 #include <sys/un.h>
 #include "circularqueue/circularqueue.h"
-#include "../client/tecnicofs-api-constants.h"
 
 ////////////////////////////////////// Macros ////////////////////////////////////////////
 #define MAX_COMMANDS 10
@@ -86,57 +85,53 @@ void broadcast(pthread_cond_t *varCond){
 
 ////////////////////////////////////// Functions ////////////////////////////////////////////
 
-int insertCommand(char* data) {
-
-    mutex_lock();               // start of critical section
-
-    while (isFull(queue)) {
-        wait(&untilNotFull);
-    } 
-
-    enQueue(queue, data);
-    numberCommands++;
-    signal(&untilNotEmpty);
-
-    mutex_unlock();             // end of critical section
-
-    return 1;
-}
-
-char* removeCommand() {
-
-    mutex_lock();               // start of critical section
-
-    char* removeCommand;
-
-    if (isEmpty(queue) && queue->isCompleted) {
-        mutex_unlock();
-        return NULL;
-    }
-
-    while(isEmpty(queue) && !queue->isCompleted) {
-        wait(&untilNotEmpty);
-    }
-       
-
-    removeCommand = deQueue(queue);
-    numberCommands--;
-    if (isEmpty(queue))
-    signal(&untilNotFull);
-
-    mutex_unlock();             // end of critical section
-
-    return removeCommand;
-}
-
 void errorParse(){
     fprintf(stderr, "Error: command invalid.\n");
     exit(EXIT_FAILURE);
 }
 
 void socketError(int sockfd, int errorConstant) {
-    fprintf(stderr, "Error: Socket %d with error %d", sockfd, errorConstant);
-    exit(EXIT_FAILURE);
+    switch(errorConstant) {
+        case TECNICOFS_ERROR_CONNECTION_ERROR:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "CONNECTION_ERROR");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_OPEN_SESSION:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "OPEN_SESSION");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_NO_OPEN_SESSION:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "NO_OPEN_SESSION");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_FILE_ALREADY_EXISTS:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "FILE_ALREADY_EXISTS");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_FILE_NOT_FOUND:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "FILE_NOT_FOUND");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_PERMISSION_DENIED:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "PERMISSION_DENIED");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_MAXED_OPEN_FILES:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "MAXED_OPEN_FILES");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_FILE_NOT_OPEN:
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "FILE_NOT_OPEN");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_FILE_IS_OPEN:
+            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "FILE_IS_OPEN");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_INVALID_MODE:
+            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "INVALID_MODE");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_OTHER:
+            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "OTHER");
+            exit(EXIT_FAILURE);
+        case TECNICOFS_ERROR_INVALID_COMMAND:
+            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "INVALID_COMMAND");
+            exit(EXIT_FAILURE);
+        default:
+            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "DEFAULT");
+            exit(EXIT_FAILURE);
+    }
 }
 
 void* processInput(int serv_sockfd){
@@ -165,7 +160,7 @@ void* processInput(int serv_sockfd){
 void* applyCommands(char *command, int serv_sockfd){
     
     if (command == NULL)
-        socketError(serv_sockfd, TECNICOFS_ERROR_COMMAND);
+        socketError(serv_sockfd, TECNICOFS_ERROR_INVALID_COMMAND);
 
     char token;
     char name[MAX_INPUT_SIZE], last_name[MAX_INPUT_SIZE];

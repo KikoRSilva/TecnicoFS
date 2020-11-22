@@ -32,6 +32,6 @@ typedef enum type { T_FILE, T_DIRECTORY, T_NONE } type;
 /* Generic error */
 #define TECNICOFS_ERROR_OTHER -11
 /* Invalid command */
-#define TECNICOFS_ERROR_COMMAND -12
+#define TECNICOFS_ERROR_INVALID_COMMAND -12
 
 #endif /* TECNICOFS_API_CONSTANTS_H */
