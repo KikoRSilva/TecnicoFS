@@ -1,0 +1,3 @@
+# teste
+c a f
+p test-out.txt
