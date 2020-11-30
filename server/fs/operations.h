@@ -24,7 +24,6 @@ int move(char *name, char *new_name);
 int search(char *name, int function_type);
 int lookup(char *name, int function_type, ArrayLocks *arr);
 void unlocknodes(ArrayLocks *arr);
-void print_tecnicofs_tree(FILE *fp);
-
+int print_tecnicofs_tree(char *outputFile);
 
 #endif /* FS_H */

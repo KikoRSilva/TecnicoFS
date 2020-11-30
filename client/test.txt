@@ -1,3 +1,6 @@
 # teste
 c a f
+c b f
+c c d
+c /c/d f
 p test-out.txt

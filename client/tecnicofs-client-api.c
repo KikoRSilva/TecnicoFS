@@ -14,7 +14,6 @@ struct sockaddr_un client_addr, server_addr;
 socklen_t clientlen, serverlen;
 
 int tfsCreate(char *filename, char nodeType) {
-
   if (sockfd == -1)
     return TECNICOFS_ERROR_NO_OPEN_SESSION;
 

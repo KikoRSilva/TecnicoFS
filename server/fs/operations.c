@@ -3,6 +3,46 @@
 #include <stdio.h>
 #include <string.h>
 
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+int terminated = false;
+
+void waitCond() {
+	if (pthread_cond_wait(&cond, &mutex) != 0) {
+		fprintf(stderr, "Error: Failed to wait for the condition.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void signalCond() {
+	if (pthread_cond_signal(&cond) != 0) {
+		fprintf(stderr, "Error: Failed to signal for the condition.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void lock() {
+	if (pthread_mutex_lock(&mutex) != 0) {
+		fprintf(stderr, "Error: Failed to lock mutex.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
+void unlock() {
+	if (pthread_mutex_unlock(&mutex) != 0) {
+		fprintf(stderr, "Error: Failed to unlock mutex.\n");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void terminate() {
+	lock();
+	terminated = true;
+	signalCond();
+	unlock();
+}
+
 /* Given a lock, this function will lock that lock for reading
  * Input:
  *  - lock: lock
@@ -155,6 +195,7 @@ int create(char *name, type nodeType){
 		        name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -165,6 +206,7 @@ int create(char *name, type nodeType){
 		        name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -172,6 +214,7 @@ int create(char *name, type nodeType){
 		printf("Error: failed to create %s, already exists in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -182,6 +225,7 @@ int create(char *name, type nodeType){
 		printf("Error: failed to create %s in  %s, couldn't allocate inode\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -189,10 +233,12 @@ int create(char *name, type nodeType){
 		printf("Error: could not add entry %s in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 	unlocknodes(arr);
 	free(arr);
+	terminate();
 	return SUCCESS;
 }
 
@@ -233,6 +279,7 @@ int move(char* name, char* last_name){
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -244,6 +291,7 @@ int move(char* name, char* last_name){
 		printf("Error: child %s does not exists in dir %s\n", child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -256,6 +304,7 @@ int move(char* name, char* last_name){
 		printf("Error: new directory %s does not exist, invalid parent dir\n", new_parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 
 	}
@@ -266,6 +315,7 @@ int move(char* name, char* last_name){
 		printf("Error: new parent %s is not a dir\n", new_parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -273,6 +323,7 @@ int move(char* name, char* last_name){
         printf("Error: could not reset entry %s in dir %s\n", child_name, parent_name);
         unlocknodes(arr);
         free(arr);
+		terminate();
         return FAIL;
     }
 
@@ -281,11 +332,13 @@ int move(char* name, char* last_name){
                child_name, parent_name);
         unlocknodes(arr);
         free(arr);
+		terminate();
         return FAIL;
     }
 
 	unlocknodes(arr);
 	free(arr);
+	terminate();
 	return SUCCESS;
 }
 /*
@@ -314,6 +367,7 @@ int delete(char *name){
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -324,6 +378,7 @@ int delete(char *name){
 		        child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -334,6 +389,7 @@ int delete(char *name){
 		       name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -344,6 +400,7 @@ int delete(char *name){
 		       name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -353,6 +410,7 @@ int delete(char *name){
 		       child_name, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
@@ -361,11 +419,13 @@ int delete(char *name){
 		       child_inumber, parent_name);
 		unlocknodes(arr);
 		free(arr);
+		terminate();
 		return FAIL;
 	}
 
 	unlocknodes(arr);
 	free(arr);
+	terminate();
 	return SUCCESS;
 }
 
@@ -410,6 +470,7 @@ int lookup(char *name, int function_type, ArrayLocks *arr) {
 		if (function_type == CREATE || function_type == DELETE) {
 			rwlock_write(current_inumber);
 			arr->locks[arr->contador] = current_inumber;
+			terminate();
 			return current_inumber;
 		}	 
 	}
@@ -433,6 +494,7 @@ int lookup(char *name, int function_type, ArrayLocks *arr) {
 			arr->locks[++arr->contador] = current_inumber;
 		}
 	}
+	terminate();
 	return current_inumber;
 }
 
@@ -440,8 +502,20 @@ int lookup(char *name, int function_type, ArrayLocks *arr) {
 /*
  * Prints tecnicofs tree.
  * Input:
- *  - fp: pointer to output file
+ *  - outputFile: the output file to be written
  */
-void print_tecnicofs_tree(FILE *fp){
+int print_tecnicofs_tree(char *outputFile){
+	lock();
+	while (!terminated)
+		waitCond();
+	FILE * fp = fopen(outputFile, "w");
+	if (fp == NULL) {
+		fprintf(stderr, "Error: Failed open output file.\n");
+		return -1;
+	}
 	inode_print_tree(fp, FS_ROOT, "");
+	fclose(fp);
+	terminated = false;
+	unlock();
+	return 0;
 }

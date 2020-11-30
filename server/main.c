@@ -21,67 +21,7 @@
 ////////////////////////////////////// Global Variables ////////////////////////////////////////////
 int numthreads;
 char * namesocket;
-int serv_sockfd;
-
-pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t untilNotEmpty = PTHREAD_COND_INITIALIZER, untilNotFull = PTHREAD_COND_INITIALIZER;
-
-int numberCommands = 0; // f
-int headQueue = 0; // i
-int nv = MAX_COMMANDS;
-
-CircularQueue *queue;
-
-////////////////////////////////////// Sync Functions ////////////////////////////////////////////
-void init_mutex() {
-    if(pthread_mutex_init(&mutex, NULL)){
-        fprintf(stderr, "Error: Failed to init the mutex lock.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void mutex_lock(){
-    if(pthread_mutex_lock(&mutex)){
-        fprintf(stderr, "Error: Failed to lock mutex.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void mutex_unlock(){
-     if(pthread_mutex_unlock(&mutex)){
-        fprintf(stderr, "Error: Failed to unlock mutex.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void destroy_mutex(){
-    if(pthread_mutex_destroy(&mutex)){
-        fprintf(stderr, "Error: Failed to destroy mutex.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void wait(pthread_cond_t *varCond){
-    if(pthread_cond_wait(varCond, &mutex)){
-        fprintf(stderr, "Error: Failed to wait.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void signal(pthread_cond_t *varCond){
-    if(pthread_cond_signal(varCond)){
-        fprintf(stderr, "Error: Failed to signal.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void broadcast(pthread_cond_t *varCond){
-    if(pthread_cond_broadcast(varCond)){
-        fprintf(stderr, "Error: Failed to broadcast.\n");
-        exit(EXIT_FAILURE);
-    }
-}
+int sockfd;
 
 ////////////////////////////////////// Functions ////////////////////////////////////////////
 
@@ -117,47 +57,31 @@ void socketError(int sockfd, int errorConstant) {
             fprintf(stderr, "Error: Socket %d with error %s", sockfd, "FILE_NOT_OPEN");
             exit(EXIT_FAILURE);
         case TECNICOFS_ERROR_FILE_IS_OPEN:
-            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "FILE_IS_OPEN");
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "FILE_IS_OPEN");
             exit(EXIT_FAILURE);
         case TECNICOFS_ERROR_INVALID_MODE:
-            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "INVALID_MODE");
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "INVALID_MODE");
             exit(EXIT_FAILURE);
         case TECNICOFS_ERROR_OTHER:
-            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "OTHER");
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "OTHER");
             exit(EXIT_FAILURE);
         case TECNICOFS_ERROR_INVALID_COMMAND:
-            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "INVALID_COMMAND");
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "INVALID_COMMAND");
             exit(EXIT_FAILURE);
         default:
-            fprintf(stderr, "Error: Socket %d with error %d", sockfd, "DEFAULT");
+            fprintf(stderr, "Error: Socket %d with error %s", sockfd, "DEFAULT");
             exit(EXIT_FAILURE);
     }
 }
 
-void* processInput(int serv_sockfd){
-
-    clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
-
-    /* break loop with ^Z or ^D */
-    while (TRUE) {
-
-        char token, type;
-        char buffer[MAX_INPUT_SIZE];
-        char * command = malloc(sizeof(char) * (MAX_INPUT_SIZE + 1));
-
-        if (recvfrom(serv_sockfd, buffer, sizeof(buffer), 0, 0, 0) < 0) {
-            socketError(serv_sockfd, TECNICOFS_ERROR_CONNECTION_ERROR);
-        }
-
-        strcpy(command, buffer);
-
-        applyCommands(command, serv_sockfd);
-    }
-    return NULL;
-}
-
-
-void* applyCommands(char *command, int serv_sockfd){
+/**
+ * @function                    applyCommand
+ * @abstract                    run a function depending on the token of the command
+ * @param       command         has a token, specific token args
+ * @param       serv_sockfd     The server socket file descriptor
+ * @return                      the return value of the function executed
+*/
+int applyCommand(char *command, int serv_sockfd){
     
     if (command == NULL)
         socketError(serv_sockfd, TECNICOFS_ERROR_INVALID_COMMAND);
@@ -172,60 +96,78 @@ void* applyCommands(char *command, int serv_sockfd){
         exit(EXIT_FAILURE);
     }
 
-    int searchResult;
     switch (token) {
         case 'c':
             switch (last_name[0]) {
                 case 'f':
-                    printf("Create file: %s.\n", name);
-                    create(name, T_FILE);
-                    break;
+                    return create(name, T_FILE);
                 case 'd':
-                    printf("Create directory: %s.\n", name);
-                    create(name, T_DIRECTORY);
-                    break;
+                    return create(name, T_DIRECTORY);
+                    
                 default:
                     fprintf(stderr, "Error: invalid node type.\n");
-                    exit(EXIT_FAILURE);
+                    return TECNICOFS_ERROR_INVALID_COMMAND;
             }
-            break;
         case 'm':
-            printf("Move directory: %s.\n", name);
-            move(name, last_name);
-            break;
+            return move(name, last_name); 
         case 'l':
-            searchResult = search(name, LOOKUP);
-            if (searchResult >= 0){
-                printf("Search: %s found.\n", name);
-                }
-            else
-                printf("Search: %s not found.\n", name);
-            break;
+            return search(name, LOOKUP);
         case 'd':
-            printf("Delete: %s.\n", name);
-            delete(name);
-            break;
+            return delete(name);
+        case 'p':
+            return print_tecnicofs_tree(name);
         default: {
             /* error */
             fprintf(stderr, "Error: command to apply.\n");
-            exit(EXIT_FAILURE);
+            return TECNICOFS_ERROR_INVALID_COMMAND;
         }
     }
-return NULL;
 }
 
-/* this function create a pool of threads */
-void poolThreads(int serv_sockfd){
+/**
+ * @function            processInput
+ * @abstract            receives input commands from the client through a socket and @applyCommand
+ * @param       arg     pointer to an argument
+ * @return              NULL
+*/
+void* processInput(void *arg){
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &begin);
+    int server_sockfd = *((int *) arg);
+    int result;
+    /* break loop with ^Z or ^D */
+    while (TRUE) {
+
+        char in_buffer[MAX_INPUT_SIZE];
+        struct sockaddr_un client_addr;
+        socklen_t addrlen = sizeof(struct sockaddr_un);
+        
+        if (recvfrom(server_sockfd, in_buffer, sizeof(in_buffer)-1, 0, (struct sockaddr *) &client_addr, &addrlen) < 0)
+            socketError(server_sockfd, TECNICOFS_ERROR_CONNECTION_ERROR);
+
+        result = applyCommand(in_buffer, server_sockfd);
+
+        if (sendto(sockfd, (int *) &result, sizeof(result)+1, 0, (struct sockaddr *) &client_addr, addrlen) < 0)
+            socketError(server_sockfd, TECNICOFS_ERROR_CONNECTION_ERROR);
+    }
+    return NULL;
+}
+
+/**
+ * @function            poolThreads
+ * @abstract            initialize and create threads and make them @processInput
+ * @param     nothing 
+ * @return              nothing
+*/
+void poolThreads(){
 
     pthread_t consumer[numthreads];
-
     // create slave threads
     for (int i = 0; i < numthreads; i++) {
-        if (pthread_create(&consumer[i], NULL, processInput, (void *)serv_sockfd) != 0) {
+        if (pthread_create(&consumer[i], NULL, processInput, (void *) &sockfd) != 0) {
             fprintf(stderr, "Error: unable to create applyCommands thread.\n");
             exit(EXIT_FAILURE);
         }
-        
     }
     // slave threads waiting to finish
     for (int i = 0; i < numthreads; i++) {
@@ -236,16 +178,26 @@ void poolThreads(int serv_sockfd){
     }
 }
 
-/* this function gets the command line arguments and parses them to their corresponding variables */
+/**
+ * @function            assignArgs
+ * @abstract            parse the IO arguments to global variables
+ * @param       argc    number of arguments
+ * @param       argv[]  array of arguments
+ * @return              nothing
+*/
 void assignArgs(int argc, char* argv[]){
 
-    /*  |  ./tecnicofs | numthreads | namesocket  |
-        |      0       |    1       |    2        | TOTAL: 4
+    /*  
+        |  ./tecnicofs | numthreads | namesocket  |
+        |      0       |    1       |    2        | TOTAL: 3
     */
+
+    namesocket = malloc(sizeof(char) * 1024);
     if (argc == 3){
 
         numthreads = atoi(argv[1]);
         strcpy(namesocket, argv[2]);
+        printf("argv[2]: %s e namesocket: %s\n", argv[2], namesocket);
 
         /* check the numthreads */
         if (numthreads <= 0){
@@ -254,74 +206,62 @@ void assignArgs(int argc, char* argv[]){
         }
     }
     else{
-        fprintf(stderr, "Error: the command line must have 4 arguments.\n");
+        fprintf(stderr, "Error: the command line must have 4 arguments.\nDisplay: ./tecnicofs <numthreads> <namesocket>\n");
         exit(EXIT_FAILURE);
     }
 }
 
-int createSocket(char * sockPath) {
-    socklen_t servlen;
-    struct sockaddr_un serv_addr;
-    int serv_sockfd;
+/**
+ * @function            setSockAddrUn
+ * @abstract            set the socket with the given name path and address
+ * @param       path    socket path name
+ * @param       addr    socket address
+ * @return              an integer with the value of the length of the address
+*/
+int setSockAddrUn(char *path, struct sockaddr_un *addr) {
 
-    if (serv_sockfd = socket(AF_UNIX, SOCK_DGRAM, 0) < 0) {
+  if (addr == NULL)
+    return 0;
+
+  bzero((char *)addr, sizeof(struct sockaddr_un));
+  addr->sun_family = AF_UNIX;
+  strcpy(addr->sun_path, path);
+
+  return SUN_LEN(addr);
+}
+
+int main(int argc, char* argv[]){
+    
+    socklen_t serverlen;
+    struct sockaddr_un server_addr;
+    
+    /* parse the arguments */
+    assignArgs(argc, argv);
+    /* init filesystem */
+    init_fs();
+    /* init client socket */
+    if ((sockfd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
         fprintf(stderr, "Error: Unable to create a server socket.\n");
         exit(EXIT_FAILURE);
     }
 
-    // perguntar ao prof!!
-    unlink(sockPath);
+    unlink(namesocket);
 
-    bzero((char *)&serv_addr, sizeof(serv_addr));
-    serv_addr.sun_family = AF_UNIX;
-    strcpy(serv_addr.sun_path, sockPath);
-    servlen = SUN_LEN(&serv_addr);
+    serverlen = setSockAddrUn(namesocket, &server_addr);
 
-    if (bind(serv_sockfd, (struct sockaddr *) &serv_addr, servlen) < 0) {
+    if (bind(sockfd, (struct sockaddr *) &server_addr, serverlen) < 0) {
         fprintf(stderr, "Error: Unable to bind the server socket.\n");
         exit(EXIT_FAILURE);
     }
-
-    return serv_sockfd;
-}
-
-
-int main(int argc, char* argv[]){
-
-    FILE *file;
-
-    /* parse the arguments */
-    assignArgs(argc, argv);
-
-    /* initialize condition variables and the mutex lock */
-    pthread_cond_init(&untilNotEmpty, NULL);
-    pthread_cond_init(&untilNotFull,NULL);
-    init_mutex();
-    /* init filesystem */
-    init_fs();
-    /* init CircularQueue */
-    queue = initQueue();
-    /* init server socket */
-    serv_sockfd = createSocket(namesocket);
     /* create a pool of threads & process input & apply commands*/
-    poolThreads(serv_sockfd);
-    /* destroy the circular queue */
-    destroyQueue(queue);
-    /* write the output in the output_file and close it */
-    print_tecnicofs_tree(file);
-    fclose(file);
+    poolThreads();
     /* release allocated memory */
+    free(namesocket);
     destroy_fs();
-    /* destroy the mutex lock and condition variables*/
-    pthread_cond_destroy(&untilNotFull);
-    pthread_cond_destroy(&untilNotEmpty);
-    destroy_mutex();
-
     /* ends clock and shows time*/
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     printf("TecnicoFS completed in %0.4f seconds.\n", (end.tv_nsec - begin.tv_nsec) / 1000000000.0 +
             (end.tv_sec  - begin.tv_sec));
-
     /* Success */
     exit(EXIT_SUCCESS);
 
